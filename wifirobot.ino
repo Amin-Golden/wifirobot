@@ -1,4 +1,3 @@
-
 #include "esp_camera.h"
 #include <WiFi.h>
 #include "esp_timer.h"
@@ -9,7 +8,6 @@
 #include "soc/rtc_cntl_reg.h"    // disable brownout problems
 #include "esp_http_server.h"
 #include <ESP32Servo.h>
-#include "BasicStepperDriver.h"
 // Replace with your network credentials
 const char* ssid ="AMAX" ;// "AMAX""TP-Link_809E";//
 const char* password = "amin1993" ;//;"""26056937";//
@@ -39,30 +37,30 @@ const char* password = "amin1993" ;//;"""26056937";//
 #define MOTOR_1_PIN_2    2
 #define MOTOR_2_PIN_1    13
 #define MOTOR_2_PIN_2    15
- #define led              4
+//  #define led              4
 #define SERVO_1          12
 // #define SERVO_2          12
 // Motor steps per revolution. Most steppers are 200 steps or 1.8 degrees/step
-#define MOTOR_STEPS 200
-#define RPM 120
+
 // 1=full step, 2=half step etc.
-#define MICROSTEPS 1
 // All the wires needed for full functionality
-#define DIR 16
-#define STEP 0
+const int MOTOR_STEP_PIN = 1; //1
+const int MOTOR_DIRECTION_PIN = 3;
+const int analogPin = 4;
 
 #define motor_1_1        10
 #define motor_1_2        11
 #define motor_2_1        12
 #define motor_2_2        13
-// Servo servoN1;
-// Servo servoN2;
-// Servo motor_1_1;
-// Servo motor_1_2;
-// Servo motor_2_1;
-// Servo motor_2_2;
+#define steper        2
+
+int sensorValue = 10;                   // Store the sensor reading
+
+
 // Servo servoT;
 Servo servoP;
+// BasicStepperDriver stepper(MOTOR_STEPS, DIR, STEP);
+// ESP_FlexyStepper stepper;
 void initMotors() 
 {
   // servoT.setPeriodHertz(50);    // standard 50 hz servo
@@ -71,21 +69,16 @@ void initMotors()
   ledcSetup(motor_1_2, 2000, 8); // 2000 hz PWM, 8-bit resolution
   ledcSetup(motor_2_1, 2000, 8); // 2000 hz PWM, 8-bit resolution
   ledcSetup(motor_2_2, 2000, 8); // 2000 hz PWM, 8-bit resolution
+  ledcSetup(steper, 1000, 8); // 2000 hz PWM, 8-bit resolution
   ledcAttachPin(MOTOR_1_PIN_1, motor_1_1);
   ledcAttachPin(MOTOR_1_PIN_2, motor_1_2);
   ledcAttachPin(MOTOR_2_PIN_1, motor_2_1);
   ledcAttachPin(MOTOR_2_PIN_2, motor_2_2);
-  // motor_1_1.setPeriodHertz(2000);    // standard 50 hz servo
-  // motor_1_2.setPeriodHertz(2000);  
-  // motor_2_2.setPeriodHertz(2000);    // standard 50 hz servo
-  // motor_2_1.setPeriodHertz(2000); 
-  //   ESP32PWM::allocateTimer(0);
-  // ESP32PWM::allocateTimer(1);
-  // ESP32PWM::allocateTimer(2);
-  // ESP32PWM::allocateTimer(3); 
-//  servoN1.attach(2, 1000, 2000);
-//  servoN2.attach(13, 1000, 2000);
-  // BasicStepperDriver stepper(MOTOR_STEPS, DIR, STEP);
+  ledcAttachPin(MOTOR_STEP_PIN, steper);
+// stepper.connectToPins(MOTOR_STEP_PIN, MOTOR_DIRECTION_PIN);
+//  stepper.setSpeedInStepsPerSecond(200);
+//   stepper.setAccelerationInStepsPerSecondPerSecond(100);
+
   // stepper.begin(RPM, MICROSTEPS);
 
   servoP.attach(SERVO_1);
@@ -240,7 +233,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
           <h1 style = "font-size: 15px; background-color: #ffffff; border: 2px dashed #15da71;">Environmental surveying</h1>
           <div class="slidecontainer" >
 
-          <p style = "color: white; position:relative; left:0px; top:10px;">Soil moisture measurement: <span id="panV"></span></p>
+          <p style = "color: white; position:relative; left:0px; top:10px;">sensor motor: <span id="panV"></span></p>
           <!-- <p style = "position:relative; left:-100px; top:20px;">Soil moisture measurement</p> -->
           <input type="range" min="0" max="100" value="50" class="slider" id="pan" style = "transform: rotate(270deg);position:relative; left:0px; top:120px;">
           
@@ -250,7 +243,10 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
           <!-- <p style = "position:relative; left:50px; top:50px;">tilt</p> -->
           <input type="range" min="1" max="180" value="90" class="slider" id="tilt" style = "transform: rotate(0deg);position:relative; left:0px; top:270px;">
           <p style = "color: white; position:relative; left:0px; top:200px;">Cam Tilt: <span id="tiltV"></span></p>
+          <p style = "color: white; position:relative; left:0px; top:300px;">Soil moisture measurement: <span id="PresValue"></span></p>
+
           </div>
+    
   
         </div>
         <div class="col"  style = "height:600px ;  background-color: #4281b8; border: 2px dashed #15da71;">
@@ -688,18 +684,32 @@ function joysend(joyD){
 }
 
 
+setInterval(function() {
+  getData();
+}, 2000); 
+function getData() {
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      const sensorValues = this.responseText;
+       document.getElementById("PresValue").innerHTML = sensorValues;
+    }
+  };
+  xhttp.open("GET", "readSensor", true);
+  xhttp.send();
+}
+
 
   var sliderp = document.getElementById("pan");
    var outputp = document.getElementById("panV");
-   
-   
+
         // Set the default value
         const defaultValue = 50;
 
         // Function to reset the slider value to the default value
         function resetSlider() {
             sliderp.value = defaultValue;
-            outputp.innerHTML = sliderp.value;
+            outputp.innerHTML =sliderp.value;
             var xhr1 = new XMLHttpRequest();
             xhr1.open("GET", "/action?go=" +"panV"+'&' +"val="+ sliderp.value, true);
             xhr1.send();
@@ -769,7 +779,7 @@ static esp_err_t stream_handler(httpd_req_t *req){
   while(true){
     fb = esp_camera_fb_get();
     if (!fb) {
-      Serial.println("Camera capture failed");
+      // Serial.println("Camera capture failed");
       res = ESP_FAIL;
     } else {
       if(fb->width > 400){
@@ -778,7 +788,7 @@ static esp_err_t stream_handler(httpd_req_t *req){
           esp_camera_fb_return(fb);
           fb = NULL;
           if(!jpeg_converted){
-            Serial.println("JPEG compression failed");
+            // Serial.println("JPEG compression failed");
             res = ESP_FAIL;
           }
         } else {
@@ -817,6 +827,7 @@ int valueY = 0 , valueX = 0 , valueTilt = 90 , valuePan = 90 ;
 bool cc=1;
 int ledV=0;
 
+
 static esp_err_t cmd_handler(httpd_req_t *req){
   char*  buf;
   size_t buf_len;
@@ -843,8 +854,8 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       httpd_resp_send_404(req);
       return ESP_FAIL;
     }
-    Serial.print("buf: ");
-    Serial.println(buf);
+    // Serial.print("buf: ");
+    // Serial.println(buf);
     free(buf);
   } else {
     httpd_resp_send_404(req);
@@ -857,10 +868,10 @@ static esp_err_t cmd_handler(httpd_req_t *req){
    s->set_lenc(s, 1);  
    cc=0;
   }
+  s->set_vflip(s, 1);
    int res = 0;
    int val = atoi(value);
 
-  
   if(!strcmp(variable, "joyx")) {
     valueX = val ;
   } else if(!strcmp(variable, "joyy")) {
@@ -879,23 +890,34 @@ static esp_err_t cmd_handler(httpd_req_t *req){
 
 //  digitalWrite(led,ledV);
 
-  Serial.print("joyx: ");
-  Serial.print(valueX);
-  Serial.print(" ,joyy: ");
-  Serial.print(valueY);
-  Serial.print("  ,tiltV: ");
-  Serial.print(valueTilt);
-  Serial.print("  ,panV: ");
-  Serial.print(valuePan);
-  Serial.print("  ,led: ");
-  Serial.println(ledV);
+  // Serial.print("joyx: ");
+  // Serial.print(valueX);
+  // Serial.print(" ,joyy: ");
+  // Serial.print(valueY);
+  // Serial.print("  ,tiltV: ");
+  // Serial.print(valueTilt);
+  // Serial.print("  ,panV: ");
+  // Serial.print(valuePan);
+  // Serial.print("  ,led: ");
+  // Serial.println(ledV);
 
 //map(valueTilt,1,180,3250 , 6500);
-map(valuePan,1,180,3250 , 6500);
+map(valueTilt,1,180,3250 , 6500);
 //3250 , 6500
+   sensorValue = digitalRead(analogPin);
 
-  servoP.write(valuePan);
-//   stepper.move(-MOTOR_STEPS*MICROSTEPS);
+  servoP.write(valueTilt);
+   if(valuePan>50){
+    ledcWrite(steper,(valuePan*2));
+    digitalWrite(MOTOR_DIRECTION_PIN,1);
+  }else if(valuePan<50){
+    ledcWrite(steper,((50-valuePan)*2));
+    digitalWrite(MOTOR_DIRECTION_PIN,0);
+  }else{
+    ledcWrite(steper,0);
+
+  }
+
 //   servoT.write(valueTilt);
      if(valueY>=0){
        if(valueX>0){
@@ -938,6 +960,19 @@ map(valuePan,1,180,3250 , 6500);
   return httpd_resp_send(req, NULL, 0);
 }
 
+static esp_err_t readSensor_handler(httpd_req_t *req){
+    httpd_resp_set_type(req, "text/plane");
+
+    float pres_result = sensorValue;
+
+    String valuesStrg =  String(pres_result);
+    int strgLength = valuesStrg.length();
+    char values_as_char[strgLength];
+    valuesStrg.toCharArray(values_as_char, strgLength);
+
+    return httpd_resp_send(req,  (const char *)values_as_char, HTTPD_RESP_USE_STRLEN);
+}
+
 void startCameraServer(){
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = 80;
@@ -960,9 +995,16 @@ void startCameraServer(){
     .handler   = stream_handler,
     .user_ctx  = NULL
   };
+    httpd_uri_t readSensor_uri = {
+        .uri       = "/readSensor",
+        .method    = HTTP_GET,
+        .handler   = readSensor_handler,
+        .user_ctx  = NULL
+    };
   if (httpd_start(&camera_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(camera_httpd, &index_uri);
     httpd_register_uri_handler(camera_httpd, &cmd_uri);
+     httpd_register_uri_handler(camera_httpd, &readSensor_uri);
   }
   config.server_port += 1;
   config.ctrl_port += 1;
@@ -978,11 +1020,14 @@ void setup() {
    pinMode(MOTOR_1_PIN_2, OUTPUT);
    pinMode(MOTOR_2_PIN_1, OUTPUT);
    pinMode(MOTOR_2_PIN_2, OUTPUT);
+   pinMode(MOTOR_STEP_PIN, OUTPUT);
+   pinMode(MOTOR_DIRECTION_PIN, OUTPUT);
+   pinMode(analogPin, INPUT);
   // pinMode(led, OUTPUT);
   
 
-  Serial.begin(115200);
-  Serial.setDebugOutput(false);
+  // Serial.begin(115200);
+  // Serial.setDebugOutput(false);
   
 
   camera_config_t config;
@@ -1008,44 +1053,46 @@ void setup() {
   config.pixel_format = PIXFORMAT_JPEG; //PIXFORMAT_YUV422
   config.fb_location = CAMERA_FB_IN_PSRAM;
   if(psramFound()){
-    config.frame_size = FRAMESIZE_HVGA;
+    config.frame_size = FRAMESIZE_VGA;
     config.jpeg_quality = 20;
     config.fb_count = 2;
     config.grab_mode = CAMERA_GRAB_LATEST;
-    Serial.println("psram Found ");
+    // Serial.println("psram Found ");
   } else {
     config.frame_size = FRAMESIZE_SVGA;
     config.jpeg_quality = 40;
     config.fb_count = 1;
-    Serial.println("psram not Found ");
+    // Serial.println("psram not Found ");
   }
 
   // Camera init
   esp_err_t err = esp_camera_init(&config);
   
   if (err != ESP_OK) {
-    Serial.printf("Camera init failed with error 0x%x", err);
+    // Serial.printf("Camera init failed with error 0x%x", err);
     return;
   }
 
     initMotors();
 
+
   // Wi-Fi connection
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.print(".");
+    // Serial.print(".");
   }
-  Serial.println("");
-  Serial.println("WiFi connected");
+  // Serial.println("");
+  // Serial.println("WiFi connected");
   
-  Serial.print("Camera Stream Ready! Go to: http://");
-  Serial.println(WiFi.localIP());
-  
+  // Serial.print("Camera Stream Ready! Go to: http://");
+  // Serial.println(WiFi.localIP());
   // Start streaming web server
   startCameraServer();
+
+        
 }
 
 void loop() {
-  
+ 
 }
